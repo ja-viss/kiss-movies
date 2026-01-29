@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Movie, YoutubeVideo } from '../../App';
 import VideoPlayer from '../VideoPlayer';
@@ -33,7 +32,6 @@ const DetailView: React.FC<DetailViewProps> = ({ movie }) => {
     setFiles([]);
     setActiveVideo(null);
     const scraper = new ScraperService();
-    const origin = window.location.origin;
 
     // MODO COLECCIÓN (GÉNERO YOUTUBE)
     if (movie.isCollection && movie.searchQuery) {
@@ -44,7 +42,7 @@ const DetailView: React.FC<DetailViewProps> = ({ movie }) => {
       if (videos.length > 0) {
         const firstEntry: IndexEntry = {
           server: 'YOUTUBE_PRIMARY_NODE',
-          url: `https://www.youtube.com/embed/${videos[0].id}?autoplay=1&rel=0&modestbranding=1&origin=${origin}`,
+          url: `https://www.youtube.com/embed/${videos[0].id}?autoplay=1&rel=0&modestbranding=1`,
           quality: '1080p',
           language: 'Español',
           status: 'LIVE',
@@ -67,12 +65,13 @@ const DetailView: React.FC<DetailViewProps> = ({ movie }) => {
     const nativeId = movie.id.replace('yt_', '');
     addTrace(`🚀 HANDSHAKE: Sincronizando con nodo ${isYT ? 'YouTube' : 'Mirror Engine'}`);
     
+    // Watchdog de seguridad
     watchdogRef.current = window.setTimeout(() => {
         if (!activeVideo && isResolving) {
             addTrace(`⚠️ TIMEOUT: Activando nodo de rescate forzado.`);
             const fallback: IndexEntry = {
                 server: 'RESCUE_NODE_NATIVE',
-                url: isYT ? `https://www.youtube.com/embed/${nativeId}?autoplay=1&rel=0&origin=${origin}` : `https://www.2embed.cc/embed/${nativeId}`,
+                url: isYT ? `https://www.youtube.com/embed/${nativeId}?autoplay=1&rel=0` : `https://www.2embed.cc/embed/${nativeId}`,
                 quality: 'HD',
                 language: 'Español',
                 status: 'LIVE',
@@ -83,16 +82,18 @@ const DetailView: React.FC<DetailViewProps> = ({ movie }) => {
             setActiveVideo(fallback);
             setIsResolving(false);
         }
-    }, 5000);
+    }, 8000); // Le di un poco más de tiempo al watchdog (8s)
 
     try {
+        // Llamamos al scraper con el ID de IMDB si existe
         const results = await scraper.findLiveLinks(movie.title, movie.year, 'Latino', movie.id, imdbId);
         const entries: IndexEntry[] = results.map(r => ({ ...r, idType: isYT ? 'YT_NODE' : 'FAST_NODE' }));
+        
         if (entries.length > 0) {
           if (watchdogRef.current) window.clearTimeout(watchdogRef.current);
           setFiles(entries);
-          setActiveVideo(entries[0]);
-          addTrace(`✅ LINKED: Motores de streaming en línea.`);
+          setActiveVideo(entries[0]); // Por defecto reproduce el primero
+          addTrace(`✅ LINKED: ${entries.length} motores de streaming encontrados.`);
         }
     } catch (e) { 
       addTrace(`❌ CRITICAL: Error de resolución en clúster.`); 
@@ -118,12 +119,12 @@ const DetailView: React.FC<DetailViewProps> = ({ movie }) => {
     return () => { if (watchdogRef.current) window.clearTimeout(watchdogRef.current); };
   }, [movie, fastResolve]);
 
-  const handleVideoSwitch = (video: YoutubeVideo) => {
+  // Handler para cambiar de video en colecciones de YouTube
+  const handleYoutubeCollectionSwitch = (video: YoutubeVideo) => {
     addTrace(`🔄 SWITCH: Transfiriendo flujo a ID [${video.id}]`);
-    const origin = window.location.origin;
     const newEntry: IndexEntry = {
       server: 'YOUTUBE_LIVE_FEED',
-      url: `https://www.youtube.com/embed/${video.id}?autoplay=1&rel=0&modestbranding=1&origin=${origin}`,
+      url: `https://www.youtube.com/embed/${video.id}?autoplay=1&rel=0&modestbranding=1`,
       quality: 'HD/4K',
       language: 'Español',
       status: 'LIVE',
@@ -133,6 +134,12 @@ const DetailView: React.FC<DetailViewProps> = ({ movie }) => {
     };
     setActiveVideo(newEntry);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Handler para cambiar de SERVIDOR (VidSrc, Smashy, etc)
+  const handleServerSwitch = (serverEntry: IndexEntry) => {
+    addTrace(`🔀 NODE_JUMP: Cambiando a servidor ${serverEntry.server}`);
+    setActiveVideo(serverEntry);
   };
 
   return (
@@ -169,18 +176,48 @@ const DetailView: React.FC<DetailViewProps> = ({ movie }) => {
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-12">
         <div className="xl:col-span-3 space-y-16">
            
-           <div className="relative aspect-video w-full rounded-[4rem] md:rounded-[6rem] overflow-hidden border border-white/5 shadow-2xl ring-1 ring-white/5">
+           <div className="relative aspect-video w-full rounded-[4rem] md:rounded-[6rem] overflow-hidden border border-white/5 shadow-2xl ring-1 ring-white/5 bg-[#020205]">
               {activeVideo ? (
                 <VideoPlayer video={activeVideo} movieTitle={movie.title} />
               ) : (
-                <div className="w-full h-full bg-[#0a0a0f] flex flex-col items-center justify-center gap-14">
+                <div className="w-full h-full flex flex-col items-center justify-center gap-14">
                    <div className="w-32 h-32 border-[4px] border-white/5 border-t-pink-500 rounded-full animate-spin"></div>
                    <p className="text-xs font-black text-slate-600 uppercase tracking-[0.8em] animate-pulse italic">Establishing Neural Link...</p>
                 </div>
               )}
            </div>
 
-           {/* Galería Dinámica de YouTube */}
+           {/* --- NUEVA SECCIÓN: SELECTOR DE SERVIDORES --- */}
+           {!movie.isCollection && files.length > 0 && (
+             <section className="animate-in slide-in-from-bottom-10 fade-in duration-700">
+               <h3 className="text-xl font-black text-white uppercase italic tracking-widest mb-6 flex items-center gap-4">
+                 <i className="fa-solid fa-server text-pink-500"></i> Nodos de Transmisión ({files.length})
+               </h3>
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                 {files.map((file, idx) => (
+                   <button 
+                     key={idx}
+                     onClick={() => handleServerSwitch(file)}
+                     className={`relative p-5 rounded-3xl border text-left transition-all duration-300 group overflow-hidden ${activeVideo?.url === file.url ? 'bg-pink-600/10 border-pink-500/50 ring-1 ring-pink-500/20' : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.06] hover:border-white/20'}`}
+                   >
+                     <div className="flex justify-between items-start mb-2">
+                       <span className={`text-xs font-black uppercase tracking-widest italic ${activeVideo?.url === file.url ? 'text-pink-500' : 'text-white'}`}>
+                         {file.server}
+                       </span>
+                       {activeVideo?.url === file.url && <div className="w-2 h-2 rounded-full bg-pink-500 animate-pulse shadow-[0_0_10px_#ec4899]"></div>}
+                     </div>
+                     <div className="flex items-center gap-3 text-[10px] text-slate-500 font-mono">
+                       <span className="px-2 py-1 rounded bg-black/30 border border-white/5">{file.quality}</span>
+                       <span className="truncate max-w-[100px]">{file.language}</span>
+                       <span className={`ml-auto ${file.latency && file.latency < 20 ? 'text-emerald-500' : 'text-yellow-500'}`}>{file.latency}ms</span>
+                     </div>
+                   </button>
+                 ))}
+               </div>
+             </section>
+           )}
+
+           {/* Galería Dinámica de YouTube (Solo visible si es Colección) */}
            {movie.isCollection && collectionVideos.length > 0 && (
              <section className="space-y-12">
                 <div className="flex items-center justify-between border-b border-white/5 pb-10">
@@ -188,45 +225,24 @@ const DetailView: React.FC<DetailViewProps> = ({ movie }) => {
                       <div className="w-4 h-14 bg-red-600 rounded-full shadow-2xl shadow-red-500/50"></div>
                       <div>
                         <h3 className="text-4xl font-black text-white italic uppercase tracking-tighter leading-none">Colección <span className="text-red-500">YouTube</span></h3>
-                        <p className="text-slate-600 text-[9px] font-black uppercase tracking-[0.4em] mt-2 italic">Contenido indexado en tiempo real</p>
                       </div>
                    </div>
-                   <div className="px-6 py-2 rounded-2xl bg-white/[0.02] border border-white/5 text-[10px] text-slate-600 font-mono tracking-widest italic">{collectionVideos.length} NODES_FOUND</div>
+                   <div className="px-6 py-2 rounded-2xl bg-white/[0.02] border border-white/5 text-[10px] text-slate-600 font-mono tracking-widest italic">{collectionVideos.length} NODES</div>
                 </div>
                 
-                <div id="lista-peliculas" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
                    {collectionVideos.map((video) => (
                      <button 
                        key={video.id} 
-                       onClick={() => handleVideoSwitch(video)}
+                       onClick={() => handleYoutubeCollectionSwitch(video)}
                        className={`flex flex-col text-left group p-7 rounded-[3.5rem] border transition-all duration-700 ${activeVideo?.url.includes(video.id) ? 'bg-red-600/10 border-red-500/50 ring-1 ring-red-500/20' : 'bg-[#0a0a0f] border-white/5 hover:border-white/20'}`}
                      >
+                        {/* (Mismo diseño de tarjeta de YouTube que tenías antes) */}
                         <div className="relative aspect-video rounded-[2.5rem] overflow-hidden bg-black mb-6 border border-white/5">
-                           <img 
-                             src={`https://img.youtube.com/vi/${video.id}/hqdefault.jpg`} 
-                             className="w-full h-full object-cover opacity-60 group-hover:scale-110 transition-transform duration-1000 group-hover:opacity-100" 
-                             alt={video.title} 
-                             loading="lazy"
-                           />
-                           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all bg-black/40 backdrop-blur-sm scale-110 group-hover:scale-100">
-                              <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center text-white shadow-2xl ring-4 ring-white/10">
-                                 <i className="fa-solid fa-play ml-1 text-xl"></i>
-                              </div>
-                           </div>
-                           <div className="absolute bottom-5 right-5 px-4 py-1.5 bg-black/80 backdrop-blur-md rounded-2xl text-[10px] font-mono font-black text-white shadow-2xl border border-white/10">
-                              {video.duration}
-                           </div>
+                           <img src={`https://img.youtube.com/vi/${video.id}/hqdefault.jpg`} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-all" alt={video.title} loading="lazy" />
+                           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all bg-black/40 backdrop-blur-sm"><i className="fa-solid fa-play text-white text-2xl"></i></div>
                         </div>
-                        <div className="px-3 space-y-3">
-                           <h4 className={`text-base font-black uppercase tracking-tight italic line-clamp-2 transition-colors duration-500 ${activeVideo?.url.includes(video.id) ? 'text-red-500' : 'text-slate-300 group-hover:text-white'}`}>
-                              {video.title}
-                           </h4>
-                           <div className="flex items-center gap-4">
-                              <span className="text-[10px] text-slate-600 font-black uppercase tracking-[0.2em] italic">YouTube Feed</span>
-                              <div className="w-1.5 h-1.5 bg-slate-800 rounded-full"></div>
-                              <span className="text-[10px] text-emerald-500 font-black uppercase tracking-[0.2em] italic">HD Verified</span>
-                           </div>
-                        </div>
+                        <h4 className={`text-sm font-black uppercase italic line-clamp-2 ${activeVideo?.url.includes(video.id) ? 'text-red-500' : 'text-slate-300'}`}>{video.title}</h4>
                      </button>
                    ))}
                 </div>
@@ -248,12 +264,6 @@ const DetailView: React.FC<DetailViewProps> = ({ movie }) => {
                       {log}
                    </div>
                  ))}
-                 {engineTrace.length === 0 && (
-                   <div className="h-full flex flex-col items-center justify-center opacity-10 uppercase italic font-black text-[9px] gap-8">
-                     <i className="fa-solid fa-satellite-dish text-5xl"></i>
-                     Awaiting Signal...
-                   </div>
-                 )}
               </div>
            </div>
         </div>

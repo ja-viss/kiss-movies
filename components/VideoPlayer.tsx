@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 
 interface VideoPlayerProps {
@@ -22,8 +21,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ video, movieTitle, onAutoSwit
     setStatus('loading');
     if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
 
-    // Watchdog de seguridad (12 segundos para YouTube, 20 para otros)
-    const delay = video.server.includes('YOUTUBE') ? 12000 : 20000;
+    // Watchdog: Ajustado para dar un poco más de tiempo en conexiones lentas
+    const delay = video.server.includes('YOUTUBE') ? 15000 : 20000;
     timeoutRef.current = window.setTimeout(() => {
       if (status === 'loading') setStatus('error');
     }, delay);
@@ -48,9 +47,11 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ video, movieTitle, onAutoSwit
         src={video.url}
         className={`w-full h-full border-0 transition-all duration-1000 ${status === 'ready' ? 'opacity-100 scale-100' : 'opacity-0 scale-110 blur-3xl'}`}
         allowFullScreen
-        allow="autoplay; fullscreen; encrypted-media; picture-in-picture;"
+        // Agregué 'autoplay' y 'accelerometer' explícitos para móviles
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
         onLoad={handleLoad}
-        referrerPolicy="no-referrer"
+        // 👇 AQUÍ ESTABA EL ERROR 153. CAMBIO REALIZADO:
+        referrerPolicy="strict-origin-when-cross-origin"
         title={`${movieTitle} - ${video.server}`}
       />
 
