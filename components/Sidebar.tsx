@@ -5,17 +5,27 @@ import { ViewType } from '../App';
 interface SidebarProps {
   currentView: ViewType;
   onNavigateHome: () => void;
+  onNavigateSearch: () => void;
+  onNavigateTrending: () => void;
+  onNavigateLibrary: () => void;
   systemNodes: number;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigateHome, systemNodes }) => {
+const Sidebar: React.FC<SidebarProps> = ({ 
+  currentView, 
+  onNavigateHome, 
+  onNavigateSearch,
+  onNavigateTrending,
+  onNavigateLibrary,
+  systemNodes 
+}) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const menuItems = [
     { id: ViewType.HOME, label: 'Inicio', icon: 'fa-house', action: () => { onNavigateHome(); setIsOpen(false); } },
-    { id: ViewType.SEARCH, label: 'Explorar', icon: 'fa-compass', action: () => {} },
-    { id: 'trending', label: 'Tendencias', icon: 'fa-fire-flame-curved', action: () => {} },
-    { id: 'library', label: 'Mi Biblioteca', icon: 'fa-box-archive', action: () => {} },
+    { id: ViewType.SEARCH, label: 'Explorar', icon: 'fa-compass', action: () => { onNavigateSearch(); setIsOpen(false); } },
+    { id: ViewType.TRENDING, label: 'Tendencias', icon: 'fa-fire-flame-curved', action: () => { onNavigateTrending(); setIsOpen(false); } },
+    { id: ViewType.LIBRARY, label: 'Mi Biblioteca', icon: 'fa-box-archive', action: () => { onNavigateLibrary(); setIsOpen(false); } },
   ];
 
   return (
