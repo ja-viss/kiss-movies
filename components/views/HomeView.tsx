@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Movie } from '../../App';
+// 1. Importamos las secciones especiales
+import CoursesSection from './CoursesSection';
+import BooksSection from './BooksSection';
 
 const TMDB_API_KEY = "90989cb241ad3918eca0fa012317e392";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w780"; 
@@ -8,13 +11,11 @@ interface HomeViewProps {
   onSelectMovie: (movie: Movie) => void;
 }
 
-// 1. Definimos la interfaz incluyendo la función de selección
 interface ListCardProps {
   item: Movie;
   onSelect: (movie: Movie) => void;
 }
 
-// 2. Componente ListCard corregido con acceso a la función de selección
 const ListCard: React.FC<ListCardProps> = ({ item, onSelect }) => (
   <button 
     onClick={() => onSelect(item)} 
@@ -62,9 +63,8 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelectMovie }) => {
   const [curatedPlaylists, setCuratedPlaylists] = useState<Movie[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Colecciones configuradas para disparar el ScraperService
   const youtubeCollections = [
-    { id: 'coll_zombies', query: 'peliculas de zombies completas en español hd gratis', title: 'Zombies & Infección', poster: 'https://images.unsplash.com/photo-1526547462705-121430d02c2c?q=80&w=386&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D', desc: 'Supervivencia extrema y hordas implacables.' },
+    { id: 'coll_zombies', query: 'peliculas de zombies completas en español hd gratis', title: 'Zombies & Infección', poster: 'https://images.unsplash.com/photo-1526547462705-121430d02c2c?q=80&w=386&auto=format&fit=crop', desc: 'Supervivencia extrema y hordas implacables.' },
     { id: 'coll_drama', query: 'peliculas de drama completas en español latino 2024', title: 'Drama & Cine Intenso', poster: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?q=80&w=800&auto=format&fit=crop', desc: 'Historias profundas que desafían la emoción humana.' },
     { id: 'coll_accion', query: 'peliculas de accion completas en español latino 2024 hd', title: 'Acción Explosiva', poster: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=800&auto=format&fit=crop', desc: 'Adrenalina pura, persecuciones y combates.' },
     { id: 'coll_terror', query: 'peliculas de terror completas en español latino hd', title: 'Horror & Suspenso', poster: 'https://images.unsplash.com/photo-1509248961158-e54f6934749c?q=80&w=800&auto=format&fit=crop', desc: 'Lo desconocido acecha en cada sombra.' }
@@ -134,8 +134,8 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelectMovie }) => {
           <h2 className="text-6xl md:text-[10rem] font-black text-white italic uppercase tracking-tighter leading-[0.75]">
             Cine <br/> <span className="text-pink-500">Ilimitado</span> <br/> Indexado.
           </h2>
-          <p className="text-slate-500 text-sm md:text-xl font-medium leading-relaxed max-w-xl italic">
-            Desde servidores espejo hasta colecciones dinámicas de YouTube. La arquitectura perfecta para el streaming moderno.
+          <p className="text-slate-400 text-sm md:text-xl font-medium leading-relaxed max-w-xl">
+            Bienvenido a la nueva arquitectura de streaming. Disfruta de contenido descentralizado, cursos y cine global en una sola interfaz unificada.
           </p>
         </div>
         <div className="absolute top-0 right-0 w-full h-full -z-10 opacity-30">
@@ -143,14 +143,18 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelectMovie }) => {
         </div>
       </section>
 
-      {/* YouTube Cinema Section */}
+      {/* 1. SECCIÓN: YOUTUBE CINEMA */}
       <section>
         <div className="mb-14 px-4 md:px-0 flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-white/5 pb-10">
-          <div className="space-y-4">
+          <div className="space-y-4 max-w-3xl">
             <h3 className="text-5xl md:text-7xl font-black text-white tracking-tighter uppercase italic">YouTube <span className="text-red-500">Cinema</span></h3>
-            <p className="text-slate-600 text-[10px] md:text-xs font-black uppercase tracking-[0.5em] italic flex items-center gap-4">
+            <p className="text-slate-500 text-[10px] md:text-xs font-black uppercase tracking-[0.5em] italic flex items-center gap-4">
               <span className="w-10 h-[2px] bg-red-600"></span>
-              Colecciones Curadas por Género
+              Cine Gratuito y Legal
+            </p>
+            <p className="text-slate-400 text-sm leading-relaxed mt-4 border-l-2 border-red-500/30 pl-6">
+              Esta sección recopila películas completas alojadas oficialmente en YouTube. 
+              Disfruta de cine clásico, independiente y de culto sin salir de la plataforma.
             </p>
           </div>
         </div>
@@ -161,14 +165,50 @@ const HomeView: React.FC<HomeViewProps> = ({ onSelectMovie }) => {
         </div>
       </section>
 
-      {/* Global Trending Section */}
+      {/* 2. SECCIÓN: CURSOS (ACADEMIA KISS) */}
+      <section className="py-16 border-t border-white/5 border-b border-white/5 bg-[#08080c]/50">
+         <div className="px-4 md:px-0 mb-8 max-w-3xl">
+            <div className="flex items-center gap-3 mb-2">
+               <i className="fa-solid fa-graduation-cap text-pink-500"></i>
+               <span className="text-xs font-black uppercase tracking-widest text-pink-500">Zona de Aprendizaje</span>
+            </div>
+            <p className="text-slate-400 text-sm leading-relaxed">
+               No solo es entretenimiento. Hemos indexado los mejores <strong>cursos completos y gratuitos</strong> de YouTube 
+               (Programación, Trading, Finanzas) para que adquieras nuevas habilidades.
+            </p>
+         </div>
+         <CoursesSection onCourseSelect={onSelectMovie} />
+      </section>
+
+      {/* 3. SECCIÓN: LIBRERÍA DIGITAL (GOOGLE BOOKS) */}
+      <section className="py-16 border-b border-white/5 bg-[#050508]">
+         <div className="px-4 md:px-0 mb-8 max-w-3xl">
+             <div className="flex items-center gap-3 mb-2">
+                <i className="fa-solid fa-book text-amber-500"></i>
+                <span className="text-xs font-black uppercase tracking-widest text-amber-500">Biblioteca Inteligente</span>
+             </div>
+             <p className="text-slate-400 text-sm leading-relaxed">
+                 Accede instantáneamente a millones de libros y documentos a través de nuestra integración con 
+                 <strong> Google Books API</strong>. Disponible en Inglés y Español.
+             </p>
+         </div>
+         <BooksSection />
+      </section>
+
+      {/* 4. SECCIÓN: GLOBAL TRENDING */}
       <section>
-        <div className="mb-14 px-4 md:px-0">
-          <h3 className="text-5xl md:text-7xl font-black text-white tracking-tighter uppercase italic mb-6">Global <span className="text-pink-500">Trending</span></h3>
-          <p className="text-slate-600 text-[10px] md:text-xs font-black uppercase tracking-[0.5em] italic flex items-center gap-4">
-            <span className="w-10 h-[2px] bg-pink-500"></span>
-            Metadatos extraídos de TMDB v3
-          </p>
+        <div className="mb-14 px-4 md:px-0 mt-20">
+          <div className="space-y-4 max-w-3xl">
+            <h3 className="text-5xl md:text-7xl font-black text-white tracking-tighter uppercase italic">Global <span className="text-pink-500">Trending</span></h3>
+            <p className="text-slate-500 text-[10px] md:text-xs font-black uppercase tracking-[0.5em] italic flex items-center gap-4">
+              <span className="w-10 h-[2px] bg-pink-500"></span>
+              El pulso del cine mundial
+            </p>
+            <p className="text-slate-400 text-sm leading-relaxed mt-4 border-l-2 border-pink-500/30 pl-6">
+               Descubre qué está viendo el mundo en este momento. Esta lista se actualiza semanalmente 
+               utilizando la base de datos de <strong>TMDB</strong>.
+            </p>
+          </div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-10 md:gap-14">
           {trending.map(movie => (

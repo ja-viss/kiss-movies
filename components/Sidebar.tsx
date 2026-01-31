@@ -1,32 +1,73 @@
-
 import React, { useState } from 'react';
 import { ViewType } from '../App';
 
 interface SidebarProps {
   currentView: ViewType;
-  onNavigateHome: () => void;
-  onNavigateSearch: () => void;
-  onNavigateTrending: () => void;
-  onNavigateLibrary: () => void;
+  onNavigate: (view: ViewType) => void;
   systemNodes: number;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
   currentView, 
-  onNavigateHome, 
-  onNavigateSearch,
-  onNavigateTrending,
-  onNavigateLibrary,
+  onNavigate,
   systemNodes 
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
+  // Definición del Menú con el nuevo apartado de Archivos
   const menuItems = [
-    { id: ViewType.HOME, label: 'Inicio', icon: 'fa-house', action: () => { onNavigateHome(); setIsOpen(false); } },
-    { id: ViewType.SEARCH, label: 'Explorar', icon: 'fa-compass', action: () => { onNavigateSearch(); setIsOpen(false); } },
-    { id: ViewType.TRENDING, label: 'Tendencias', icon: 'fa-fire-flame-curved', action: () => { onNavigateTrending(); setIsOpen(false); } },
-    { id: ViewType.LIBRARY, label: 'Mi Biblioteca', icon: 'fa-box-archive', action: () => { onNavigateLibrary(); setIsOpen(false); } },
+    // 1. Básicos
+    { 
+      id: ViewType.HOME, 
+      label: 'Inicio', 
+      icon: 'fa-house', 
+      color: 'text-slate-500 group-hover:text-white' 
+    },
+    { 
+      id: ViewType.SEARCH, 
+      label: 'Explorar', 
+      icon: 'fa-compass', 
+      color: 'text-slate-500 group-hover:text-white' 
+    },
+    
+    // 2. SECCIONES DEDICADAS
+    { 
+      id: ViewType.YOUTUBE_CINEMA, 
+      label: 'YouTube Cinema', 
+      icon: 'fa-youtube', 
+      color: 'text-red-500' 
+    },
+    { 
+      id: ViewType.ACADEMY, 
+      label: 'Academia Kiss', 
+      icon: 'fa-graduation-cap', 
+      color: 'text-pink-500' 
+    },
+    { 
+      id: ViewType.DIGITAL_LIBRARY, 
+      label: 'Biblioteca Digital', 
+      icon: 'fa-book', 
+      color: 'text-amber-500' 
+    },
+    // 👇 NUEVO: APARTADO DE ARCHIVOS (INTERNET ARCHIVE)
+    { 
+      id: ViewType.ARCHIVE, 
+      label: 'Archivos & Media', 
+      icon: 'fa-box-open', // Icono de caja/archivo
+      color: 'text-cyan-400' // Color Cyan característico
+    },
+    { 
+      id: ViewType.GLOBAL_TRENDING, 
+      label: 'Global Trending', 
+      icon: 'fa-fire-flame-curved', 
+      color: 'text-violet-500' 
+    },
   ];
+
+  const handleNavigation = (view: ViewType) => {
+    onNavigate(view);
+    setIsOpen(false); // Cerramos el menú móvil al navegar
+  };
 
   return (
     <>
@@ -45,8 +86,9 @@ const Sidebar: React.FC<SidebarProps> = ({
         fixed lg:sticky top-0 h-screen z-40 bg-[#0a0a0f] border-r border-white/5 flex flex-col transition-all duration-700 ease-in-out
         w-72 ${isOpen ? 'left-0' : '-left-full lg:left-0'}
       `}>
-        <div className="p-10">
-          <button onClick={onNavigateHome} className="flex items-center gap-5 mb-16 hover:opacity-80 transition-opacity">
+        <div className="p-10 flex flex-col h-full">
+          {/* Logo Area */}
+          <button onClick={() => handleNavigation(ViewType.HOME)} className="flex items-center gap-5 mb-12 hover:opacity-80 transition-opacity">
             <div className="relative">
               <div className="absolute inset-0 bg-pink-500 blur-2xl opacity-30"></div>
               <div className="w-14 h-14 bg-gradient-to-tr from-pink-600 to-violet-600 rounded-2xl flex items-center justify-center relative shadow-2xl border border-white/10">
@@ -59,61 +101,71 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </button>
 
-          <nav className="space-y-2">
-            {menuItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={item.action}
-                className={`w-full group flex items-center gap-5 px-6 py-4 rounded-[1.2rem] transition-all duration-500 text-xs font-black uppercase tracking-widest italic ${
-                  currentView === item.id
-                    ? 'bg-gradient-to-r from-pink-600 to-pink-500 text-white shadow-xl shadow-pink-600/20 translate-x-1'
-                    : 'text-slate-500 hover:text-white hover:bg-white/[0.03]'
-                }`}
-              >
-                <i className={`fa-solid ${item.icon} w-6 text-center transition-transform duration-500 group-hover:scale-125`}></i>
-                {item.label}
-              </button>
-            ))}
-          </nav>
-        </div>
+          {/* Navigation Links */}
+          <nav className="space-y-2 flex-1 overflow-y-auto custom-scrollbar pr-2">
+            {menuItems.map((item) => {
+              const isActive = currentView === item.id;
+              
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleNavigation(item.id)}
+                  className={`
+                    w-full group flex items-center gap-5 px-6 py-4 rounded-[1.2rem] transition-all duration-300 text-xs font-black uppercase tracking-widest italic relative overflow-hidden
+                    ${isActive 
+                      ? 'bg-white/[0.03] text-white shadow-xl ring-1 ring-white/5' 
+                      : 'text-slate-500 hover:bg-white/[0.02] hover:text-white'}
+                  `}
+                >
+                  {/* Indicador lateral activo */}
+                  {isActive && (
+                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${item.color.replace('text-', 'bg-')}`}></div>
+                  )}
 
-        <div className="mt-auto p-10 space-y-8">
-          <div className="bg-[#050508] rounded-[2.5rem] p-8 border border-white/5 relative overflow-hidden group shadow-2xl">
-            <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-10 transition-opacity duration-700">
-               <i className="fa-brands fa-js-square text-6xl"></i>
-            </div>
-            <p className="text-[10px] text-slate-600 font-black tracking-[0.2em] uppercase mb-6 italic">Neural JS Engine</p>
-            <div className="space-y-5">
-               <div>
-                  <div className="flex justify-between text-[10px] font-mono text-slate-500 mb-2">
-                     <span>ACTIVE_NODES</span>
-                     <span className="text-pink-500 font-bold">{systemNodes}</span>
-                  </div>
-                  <div className="h-1.5 bg-slate-900 rounded-full overflow-hidden border border-white/5">
-                     <div className="h-full bg-pink-500 transition-all duration-1000" style={{ width: `${(systemNodes / 1600) * 100}%` }}></div>
-                  </div>
-               </div>
-               <div>
-                  <div className="flex justify-between text-[10px] font-mono text-slate-500 mb-2">
-                     <span>BYPASS_SUCCESS</span>
-                     <span className="text-violet-400 font-bold">98.2%</span>
-                  </div>
-                  <div className="h-1.5 bg-slate-900 rounded-full overflow-hidden border border-white/5">
-                     <div className="h-full bg-violet-500" style={{ width: '98%' }}></div>
-                  </div>
-               </div>
-            </div>
-            <div className="mt-8 flex items-center justify-between">
-              <span className="text-[9px] text-emerald-500 font-black tracking-widest uppercase flex items-center gap-2">
-                 <span className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-                 </span>
-                 JS_WORKER_OK
-              </span>
-              <span className="text-[8px] text-slate-700 font-mono">LAT: 0.8s</span>
+                  <i className={`
+                    fa-solid ${item.icon} w-6 text-center transition-transform duration-500 group-hover:scale-110 text-lg
+                    ${isActive ? item.color : 'text-slate-600 group-hover:text-white'}
+                  `}></i>
+                  
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* System Status Footer */}
+          <div className="mt-8 pt-6 border-t border-white/5">
+            <div className="bg-[#050508] rounded-[2rem] p-6 border border-white/5 relative overflow-hidden group shadow-lg">
+              <div className="absolute top-0 right-0 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity duration-700">
+                 <i className="fa-brands fa-js-square text-5xl"></i>
+              </div>
+              <p className="text-[9px] text-slate-600 font-black tracking-[0.2em] uppercase mb-4 italic">Neural JS Engine</p>
+              
+              <div className="space-y-3">
+                 <div>
+                    <div className="flex justify-between text-[9px] font-mono text-slate-500 mb-1">
+                       <span>NODES</span>
+                       <span className="text-pink-500 font-bold">{systemNodes}</span>
+                    </div>
+                    <div className="h-1 bg-slate-900 rounded-full overflow-hidden">
+                       <div className="h-full bg-pink-500 transition-all duration-1000" style={{ width: `${(systemNodes / 1600) * 100}%` }}></div>
+                    </div>
+                 </div>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between">
+                <span className="text-[8px] text-emerald-500 font-black tracking-widest uppercase flex items-center gap-1.5">
+                   <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                   </span>
+                   ONLINE
+                </span>
+                <span className="text-[8px] text-slate-700 font-mono">v3.0.1</span>
+              </div>
             </div>
           </div>
+
         </div>
       </aside>
     </>

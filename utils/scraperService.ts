@@ -1,5 +1,6 @@
 import { YoutubeVideo } from "../App";
 
+// 1. Interfaces para los resultados
 export interface ScrapedLink {
   server: string;
   url: string;
@@ -10,19 +11,55 @@ export interface ScrapedLink {
   latency?: number;
 }
 
+// Interfaz para Internet Archive
+export interface ArchiveItem {
+  identifier: string;
+  title: string;
+  description: string;
+  mediaType: string;
+  year: string;
+  downloads: number;
+  thumbnail: string;
+  link: string;
+  language?: string;
+  duration?: string;
+}
+
 export class ScraperService {
   private apiKey: string;
   private youtubeApiBase: string;
+  private archiveApiBase: string;
 
   constructor() {
     this.apiKey = "AIzaSyDygRMPt04-u25wdosdVXlYnUs97bBi6nk"; 
     this.youtubeApiBase = "https://www.googleapis.com/youtube/v3";
+    this.archiveApiBase = "https://archive.org/advancedsearch.php";
   }
 
-  // --- 1. MÓDULO YOUTUBE (Nativo, sin cambios) ---
-  async fetchYoutubeCollection(query: string): Promise<YoutubeVideo[]> {
+  // --- HELPER: Parsear duración a segundos ---
+  private parseDurationToSeconds(duration: any): number {
+    if (!duration) return 0;
+    const str = Array.isArray(duration) ? duration[0] : duration; 
+    if (typeof str !== 'string') return 0;
+    if (!str.includes(':')) return parseInt(str, 10);
+
+    const parts = str.split(':').map(part => parseInt(part, 10));
+    let seconds = 0;
+
+    if (parts.length === 3) { // HH:MM:SS
+      seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+    } else if (parts.length === 2) { // MM:SS
+      seconds = parts[0] * 60 + parts[1];
+    }
+    return seconds;
+  }
+
+  // --- 1. MÓDULO YOUTUBE ---
+  async fetchYoutubeCollection(query: string, limit: number = 8): Promise<YoutubeVideo[]> {
       try {
-        const searchUrl = `${this.youtubeApiBase}/search?part=snippet&q=${encodeURIComponent(query)}&type=video&videoDuration=long&relevanceLanguage=es&maxResults=25&key=${this.apiKey}`;
+        const apiMaxResults = limit * 2;
+        const searchUrl = `${this.youtubeApiBase}/search?part=snippet&q=${encodeURIComponent(query)}&type=video&videoDuration=long&relevanceLanguage=es&maxResults=${apiMaxResults}&key=${this.apiKey}`;
+        
         const searchResponse = await fetch(searchUrl);
         const searchData = await searchResponse.json();
   
@@ -37,43 +74,111 @@ export class ScraperService {
   
         const videos: YoutubeVideo[] = detailsData.items.map((item: any) => {
           if (!item.status?.embeddable) return null;
-          if (item.contentDetails?.regionRestriction?.blocked?.length > 0) return null;
-          if (item.contentDetails?.contentRating?.ytRating) return null; 
-          
-          const categoryId = item.snippet.categoryId;
-          if (categoryId !== '1' && categoryId !== '24') return null;
-  
           const durationRegex = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/;
           const matches = item.contentDetails.duration.match(durationRegex);
           if (!matches) return null;
           const hours = parseInt(matches[1] || '0');
           const minutes = parseInt(matches[2] || '0');
-          if (hours === 0 && minutes < 50) return null;
+          
+          if (hours === 0 && minutes < 20) return null;
   
           return {
             id: item.id,
             title: item.snippet.title,
             duration: `${hours > 0 ? `${hours}h ` : ''}${minutes}m`,
-            thumbnail: `https://img.youtube.com/vi/${item.id}/maxresdefault.jpg`
+            thumbnail: `https://img.youtube.com/vi/${item.id}/mqdefault.jpg`
           };
         }).filter((v): v is YoutubeVideo => v !== null);
   
-        return videos.slice(0, 8);
-  
+        return videos.slice(0, limit);
       } catch (e) {
         console.error("YouTube Scraper Error:", e);
         return [];
       }
   }
 
-  // --- 2. MÓDULO DE EXTRACCIÓN LATINA (Deep Scraping via Aggregators) ---
-  
+  // ==========================================
+  // 2. MÓDULO INTERNET ARCHIVE (OPTIMIZADO V2)
+  // ==========================================
+  async searchInternetArchive(query: string, type: string = 'movies'): Promise<ArchiveItem[]> {
+    try {
+      const isMovie = type === 'movies';
+      
+      // OPTIMIZACIÓN: Al filtrar mejor la consulta, no necesitamos pedir 150 items.
+      // Con 50 es suficiente para tener resultados de calidad.
+      const rowsToFetch = isMovie ? 50 : 40;
+
+      let luceneQuery = `mediatype:(${type})`;
+      let sortParam = '&sort[]=downloads desc'; 
+
+      // --- ESTRATEGIA PARA PELÍCULAS ---
+      if (isMovie) {
+        // En lugar de traer todo y filtrar, pedimos directamente a las colecciones de LARGOMETRAJES.
+        // feature_films: Películas principales
+        // sci-fi: Colección específica de Sci-Fi
+        // horror_movies: Colección específica de Terror
+        // silent_films: Cine clásico mudo
+        luceneQuery += ` AND (collection:(feature_films) OR collection:(moviesandfilms) OR collection:(sci-fi) OR collection:(horror_movies) OR collection:(silent_films))`;
+      }
+
+      // --- ESTRATEGIA DE BÚSQUEDA ---
+      if (query && query.trim().length > 0) {
+        // Búsqueda abierta en TODOS los campos (Título, Descripción, Metadata)
+        // Esto permite encontrar PDFs, EPUBs y documentos por su contenido o etiquetas
+        luceneQuery += ` AND (${query})`;
+        sortParam = ''; // Usamos relevancia
+      }
+
+      const encodedQuery = encodeURIComponent(luceneQuery);
+      // Pedimos 'format' para saber si es PDF, EPUB, etc.
+      const fields = 'identifier,title,mediatype,description,year,downloads,language,duration,format';
+      const url = `${this.archiveApiBase}?q=${encodedQuery}&fl[]=${fields.split(',').join('&fl[]=')}&rows=${rowsToFetch}&output=json${sortParam}`;
+
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (data.response && data.response.docs) {
+        let docs = data.response.docs;
+
+        // FILTRO DE SEGURIDAD (Solo Películas)
+        // Aunque la query ya filtra por colección, nos aseguramos que sean > 45 mins
+        if (isMovie) {
+          docs = docs.filter((doc: any) => {
+            if (!doc.duration) return true; // Si no tiene duración, a veces es mejor dejarlo pasar por si acaso
+            const seconds = this.parseDurationToSeconds(doc.duration);
+            return seconds > 2700; // > 45 minutos
+          });
+        }
+
+        return docs.slice(0, 24).map((doc: any) => ({
+          identifier: doc.identifier,
+          title: doc.title,
+          description: doc.description ? doc.description.replace(/<[^>]*>?/gm, '').slice(0, 180) + '...' : 'Sin descripción',
+          mediaType: doc.mediatype,
+          year: doc.year || 'N/A',
+          downloads: doc.downloads || 0,
+          // Normalización robusta de idioma (EJ: "SPA", "ENG", "UNK")
+          language: Array.isArray(doc.language) 
+            ? doc.language[0].toUpperCase().substring(0, 3) 
+            : (doc.language ? doc.language.toUpperCase().substring(0, 3) : 'UNK'),
+          thumbnail: `https://archive.org/services/img/${doc.identifier}`,
+          link: `https://archive.org/details/${doc.identifier}`
+        }));
+      }
+      
+      return [];
+    } catch (e) {
+      console.error("Archive Scraper Error:", e);
+      return [];
+    }
+  }
+
+  // --- 3. MÓDULO DE EXTRACCIÓN LATINA (Sin cambios) ---
   async findLiveLinks(title: string, year: string, lang: string, tmdbId: string, imdbId?: string): Promise<ScrapedLink[]> {
     const isYT = tmdbId.startsWith('yt_');
     const results: ScrapedLink[] = [];
     const nativeId = tmdbId.replace('yt_', ''); 
 
-    // A. YOUTUBE LATINO (Prioridad Absoluta)
     if (isYT) {
       results.push({
         server: 'YOUTUBE_LATINO_NATIVE',
@@ -87,15 +192,10 @@ export class ScraperService {
       return results; 
     }
 
-    // Usamos el ID de IMDB preferiblemente, si no el de TMDB
     const targetId = imdbId || nativeId;
 
-    // B. CLÚSTER LATINO 1: VIDLINK (Especialista en Multi-Audio)
-    // Este servicio suele indexar servidores rápidos como Vidhide y Streamwish.
-    // IMPORTANTE: Al cargar, mostrará un selector. 
     results.push({ 
         server: `LATINO_HUB_1 [VidLink]`, 
-        // Forzamos multi-lang para que aparezcan las opciones latinas
         url: `https://vidlink.pro/movie/${targetId}?primaryColor=ec4899&autoplay=false`, 
         quality: '1080p', 
         language: 'Latino / Castellano', 
@@ -104,8 +204,6 @@ export class ScraperService {
         latency: 10 
     });
 
-    // C. CLÚSTER LATINO 2: MULTI-EMBED (Netu / Vidhide)
-    // Configuramos &lang=es para forzar la búsqueda en servidores hispanos.
     results.push({ 
         server: `LATINO_HUB_2 [Netu/Vidhide]`, 
         url: `https://multiembed.mov/?video_id=${targetId}&tmdb=1&lang=es`, 
@@ -116,8 +214,6 @@ export class ScraperService {
         latency: 15 
     });
 
-    // D. CLÚSTER LATINO 3: SMASHY (Filemoon / Streamtape)
-    // SmashyStream conecta con la red de servidores que usan las webs de "Cuevana".
     results.push({ 
         server: `LATINO_CLÁSICO [Streamtape]`, 
         url: `https://embed.smashystream.com/playere.php?tmdb=${nativeId}`, 
@@ -128,8 +224,6 @@ export class ScraperService {
         latency: 20 
     });
 
-    // E. VIDSRC.VIP (Opción VIP)
-    // Suele tener servidores premium que no están en la red pública.
     results.push({ 
         server: `LATINO_VIP [Servidor Privado]`, 
         url: `https://vidsrc.vip/embed/movie/${nativeId}`, 
@@ -140,8 +234,6 @@ export class ScraperService {
         latency: 25 
     });
 
-    // F. CINE.TO (Fuente alternativa)
-    // A veces tiene fuentes exclusivas.
     results.push({
         server: `LATINO_ALT [Cine.to]`,
         url: `https://vidsrc.to/embed/movie/${targetId}`,
@@ -152,8 +244,6 @@ export class ScraperService {
         latency: 30
     });
 
-    // G. ÚLTIMO RECURSO (Inglés)
-    // Solo se muestra al final si todo lo anterior falla.
     results.push({ 
         server: `SOLO_INGLÉS [Respaldo]`, 
         url: `https://vidsrc.cc/v2/embed/movie/${nativeId}`, 
